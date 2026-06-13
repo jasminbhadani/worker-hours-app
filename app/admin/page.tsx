@@ -1,6 +1,7 @@
 import { supabaseServer } from "../../lib/supabase-server";
 import ExportButton from "./ExportButton";
 
+export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const { data: entries, error } = await supabaseServer
     .from("work_entries")
