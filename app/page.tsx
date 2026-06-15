@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 export default function Home() {
   const [language, setLanguage] = useState("en");
 
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+
   const [formData, setFormData] = useState({
-    workerName: "",
-    jobSite: "",
-    workDate: "",
-    hoursWorked: "",
-    shift: "",
+  workerId: "",
+  projectId: "",
+  workDate: "",
+  hoursWorked: "",
+  shift: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -30,7 +33,7 @@ export default function Home() {
       day: "Day Shift",
       night: "Night Shift",
       submit: "Submit Hours",
-      success: "Hours submitted successfully.",
+      success: "Record submitted successfully.",
       validation: {
         workerRequired: "Worker name is required.",
         workerInvalid: "Please enter a valid worker name.",
@@ -72,6 +75,26 @@ export default function Home() {
 
   const t = text[language as keyof typeof text];
 
+  useEffect(() => {
+  async function loadData() {
+    const { data: workersData } = await supabase
+      .from("workers")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
+
+    const { data: projectsData } = await supabase
+      .from("projects")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
+
+    setWorkers(workersData || []);
+    setProjects(projectsData || []);
+  }
+
+  loadData();
+}, []);
   const handleChange = (
   e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
 ) => {
@@ -95,17 +118,12 @@ export default function Home() {
 
     const nameRegex = /^[A-Za-zÀ-ÿ\s'.-]+$/;
 
-    if (!formData.workerName.trim()) {
-      newErrors.workerName = t.validation.workerRequired;
-    } else if (
-      formData.workerName.trim().length < 2 ||
-      !nameRegex.test(formData.workerName.trim())
-    ) {
-      newErrors.workerName = t.validation.workerInvalid;
+    if (!formData.workerId) {
+      newErrors.workerId = "Please select a worker.";
     }
 
-    if (!formData.jobSite.trim()) {
-      newErrors.jobSite = t.validation.siteRequired;;
+    if (!formData.projectId) {
+      newErrors.projectId = "Please select a project.";
     }
 
     if (!formData.workDate) {
@@ -149,28 +167,22 @@ export default function Home() {
   if (!validateForm()) return;
 
   const { error } = await supabase
-    .from("work_entries")
-    .insert([
-      {
-        worker_name: formData.workerName,
-        job_site: formData.jobSite,
-        work_date: formData.workDate,
-        hours_worked: Number(formData.hoursWorked),
-        shift: formData.shift,
-      },
-    ]);
-
-  if (error) {
-  console.error("Supabase Error:", error);
-  alert(error.message);
-  return;
-}
+  .from("work_entries")
+  .insert([
+    {
+      worker_id: formData.workerId,
+      project_id: formData.projectId,
+      work_date: formData.workDate,
+      hours_worked: Number(formData.hoursWorked),
+      shift: formData.shift,
+    },
+  ]);
 
   setSuccess(t.success);
 
   setFormData({
-    workerName: "",
-    jobSite: "",
+    workerId: "",
+    projectId: "",
     workDate: "",
     hoursWorked: "",
     shift: "",
@@ -205,62 +217,66 @@ return (
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Worker Name */}
+          {/* Worker */}
           <div>
             <label className="block mb-1 font-medium">
               {t.worker} <span className="text-red-500">*</span>
             </label>
 
-            <input
-              type="text"
-              name="workerName"
-              value={formData.workerName}
-              placeholder={
-                language === "en"
-                  ? "John Smith"
-                  : "Juan García"
-              }
+            <select
+              name="workerId"
+              value={formData.workerId}
               onChange={handleChange}
               className={`w-full rounded-lg p-3 border ${
-                errors.workerName
+                errors.workerId
                   ? "border-red-500"
                   : "border-gray-300"
               }`}
-            />
+            >
+              <option value="">Select Worker</option>
 
-            {errors.workerName && (
+              {workers.map((worker) => (
+                <option key={worker.id} value={worker.id}>
+                  {worker.name}
+                </option>
+              ))}
+            </select>
+
+            {errors.workerId && (
               <p className="text-red-500 text-sm mt-1">
-                {errors.workerName}
+                {errors.workerId}
               </p>
             )}
           </div>
 
-          {/* Job Site */}
+          {/* Project */}
           <div>
             <label className="block mb-1 font-medium">
               {t.site} <span className="text-red-500">*</span>
             </label>
 
-            <input
-              type="text"
-              name="jobSite"
-              value={formData.jobSite}
-              placeholder={
-                language === "en"
-                  ? "Dallas Apartment Project"
-                  : "Proyecto de Apartamentos Dallas"
-              }
+            <select
+              name="projectId"
+              value={formData.projectId}
               onChange={handleChange}
               className={`w-full rounded-lg p-3 border ${
-                errors.jobSite
+                errors.projectId
                   ? "border-red-500"
                   : "border-gray-300"
               }`}
-            />
+            >
+              <option value="">Select Project</option>
 
-            {errors.jobSite && (
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+
+            {errors.projectId && (
               <p className="text-red-500 text-sm mt-1">
-                {errors.jobSite}
+                {errors.projectId}
               </p>
             )}
           </div>
