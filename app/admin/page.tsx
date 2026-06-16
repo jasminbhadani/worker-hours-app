@@ -34,26 +34,30 @@ export default async function AdminPage({
         { count: "exact" }
       );
 
-    if (search) {
-      query = query.ilike(
-        "workers.name",
-        `%${search}%`
+    
+    query = query.order(
+      "work_date",
+      { ascending: false }
+    );
+
+    if (!search) {
+      query = query.range(
+        from,
+        to
       );
     }
 
-    const {
-      data: entries,
-      error,
-      count,
-    } = await query
-      .order("work_date", {
-        ascending: false,
-      })
-      .range(from, to);
+const {
+  data: entries,
+  error,
+  count,
+} = await query;
 
-    const totalPages = Math.ceil(
-      (count || 0) / PAGE_SIZE
-    );
+    const totalPages = search
+      ? 1
+      : Math.ceil(
+          (count || 0) / PAGE_SIZE
+        );
 
   // Get counts for menu cards
   const [{ count: workerCount }, { count: projectCount }] =
@@ -68,7 +72,16 @@ export default async function AdminPage({
     ]);
 
   
-  const filteredEntries = entries || [];
+  const filteredEntries =
+  search
+    ? (entries || []).filter((entry) =>
+        entry.workers?.name
+          ?.toLowerCase()
+          .includes(
+            search.toLowerCase()
+          )
+      )
+    : entries || [];
 
   const totalEntries =
   filteredEntries?.length || 0;
@@ -313,13 +326,26 @@ export default async function AdminPage({
           </table>
 
           <div className="mt-4 text-sm text-gray-500 text-center">
-            Showing {(page - 1) * PAGE_SIZE + 1}–
-            {Math.min(page * PAGE_SIZE, count || 0)}
-            {" "}of {count || 0} records
+            {search ? (
+              <>
+                Showing {filteredEntries.length} of{" "}
+                {filteredEntries.length} records
+              </>
+            ) : (
+              <>
+                Showing {(page - 1) * PAGE_SIZE + 1}–
+                {Math.min(
+                  page * PAGE_SIZE,
+                  count || 0
+                )}{" "}
+                of {count || 0} records
+              </>
+            )}
           </div>
 
           {/* Pagination */}
-          <div className="flex justify-center items-center gap-3 mt-6">
+          {!search && (
+            <div className="flex justify-center items-center gap-3 mt-6">
             {page > 1 && (
               <a
                 href={`/admin?search=${search}&page=${page - 1}`}
@@ -342,6 +368,7 @@ export default async function AdminPage({
               </a>
             )}
           </div>
+         )} 
         </div>
       </div>
     </div>
