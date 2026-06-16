@@ -9,6 +9,7 @@ export default async function PayrollPage({
   searchParams: Promise<{
     start?: string;
     end?: string;
+    project?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -37,6 +38,9 @@ export default async function PayrollPage({
   const end =
     params.end || defaultEnd;
 
+  const selectedProject =
+    params.project || "";
+  
   // Last Week dates
   const lastMonday = new Date(monday);
   lastMonday.setDate(
@@ -65,21 +69,50 @@ export default async function PayrollPage({
     .toISOString()
     .split("T")[0];
 
-  const { data: entries, error } =
+  const { data: projects } =
     await supabaseServer
+      .from("projects")
+      .select("id, name")
+      .eq("active", true)
+      .order("name");
+
+  const selectedProjectName =
+  projects?.find(
+    (p) => p.id === selectedProject
+  )?.name;
+
+  let query = supabaseServer
       .from("work_entries")
       .select(`
         hours_worked,
         shift,
+
         workers!work_entries_worker_id_fkey (
           id,
           name,
           day_rate,
           night_rate
+        ),
+
+        projects!work_entries_project_id_fkey (
+          id,
+          name
         )
       `)
       .gte("work_date", start)
       .lte("work_date", end);
+
+    if (selectedProject) {
+      query = query.eq(
+        "project_id",
+        selectedProject
+      );
+    }
+
+const {
+  data: entries,
+  error,
+} = await query;
 
   if (error) {
     return (
@@ -94,41 +127,54 @@ export default async function PayrollPage({
   const payrollMap = new Map();
 
   entries?.forEach((entry: any) => {
-    const worker = entry.workers;
+  const worker = entry.workers;
+  const project = entry.projects;
 
-    if (!worker) return;
+  if (!worker || !project) return;
 
-    if (!payrollMap.has(worker.id)) {
-      payrollMap.set(worker.id, {
-        name: worker.name,
-        dayHours: 0,
-        nightHours: 0,
-        dayRate: Number(
-          worker.day_rate || 0
-        ),
-        nightRate: Number(
-          worker.night_rate || 0
-        ),
-      });
-    }
+  const key = `${worker.id}-${project.id}`;
 
-    const row =
-      payrollMap.get(worker.id);
+  if (!payrollMap.has(key)) {
+    payrollMap.set(key, {
+      workerName: worker.name,
+      projectName: project.name,
 
-    if (entry.shift === "Day") {
-      row.dayHours += Number(
-        entry.hours_worked
-      );
-    } else {
-      row.nightHours += Number(
-        entry.hours_worked
-      );
-    }
-  });
+      dayHours: 0,
+      nightHours: 0,
+
+      dayRate: Number(worker.day_rate || 0),
+      nightRate: Number(worker.night_rate || 0),
+    });
+  }
+
+  const row = payrollMap.get(key);
+
+  if (entry.shift === "Day") {
+    row.dayHours += Number(
+      entry.hours_worked
+    );
+  } else {
+    row.nightHours += Number(
+      entry.hours_worked
+    );
+  }
+});
 
   const payroll = Array.from(
-    payrollMap.values()
-  ).map((row: any) => {
+      payrollMap.values()
+    )
+    .sort((a: any, b: any) => {
+      if (a.workerName !== b.workerName) {
+        return a.workerName.localeCompare(
+          b.workerName
+        );
+      }
+
+      return a.projectName.localeCompare(
+        b.projectName
+      );
+    })
+    .map((row: any) => {
     const dayAmount =
       row.dayHours * row.dayRate;
 
@@ -165,6 +211,47 @@ export default async function PayrollPage({
       ) => sum + row.totalHours,
       0
     );
+  
+  const payrollRows: any[] = [];
+
+    let currentWorker = "";
+    let workerTotalHours = 0;
+    let workerTotalAmount = 0;
+
+    payroll.forEach((row: any, index) => {
+      if (
+        currentWorker &&
+        currentWorker !== row.workerName
+      ) {
+        payrollRows.push({
+          isTotal: true,
+          workerName: currentWorker,
+          totalHours: workerTotalHours,
+          amount: workerTotalAmount,
+        });
+
+        workerTotalHours = 0;
+        workerTotalAmount = 0;
+      }
+
+      payrollRows.push(row);
+
+      currentWorker = row.workerName;
+      workerTotalHours += row.totalHours;
+      workerTotalAmount += row.amount;
+
+      const isLast =
+        index === payroll.length - 1;
+
+      if (isLast) {
+        payrollRows.push({
+          isTotal: true,
+          workerName: currentWorker,
+          totalHours: workerTotalHours,
+          amount: workerTotalAmount,
+        });
+      }
+    });
 
   return (
     <div className="min-h-screen bg-slate-100 p-8">
@@ -220,6 +307,25 @@ export default async function PayrollPage({
             className="border p-2 rounded"
           />
 
+          <select
+            name="project"
+            defaultValue={selectedProject}
+            className="border p-2 rounded"
+          >
+            <option value="">
+              All Projects
+            </option>
+
+            {projects?.map((project) => (
+              <option
+                key={project.id}
+                value={project.id}
+              >
+                {project.name}
+              </option>
+            ))}
+          </select>
+
           <button
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
           >
@@ -231,6 +337,18 @@ export default async function PayrollPage({
           payroll={payroll}
         />
       </div>
+      
+      {selectedProject && (
+        <div className="mb-4">
+          <a
+            href={`/admin/payroll?start=${start}&end=${end}`}
+            className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm hover:bg-blue-200"
+          >
+            Filtering: {selectedProjectName}
+            <span className="ml-1">✕</span>
+          </a>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -256,35 +374,40 @@ export default async function PayrollPage({
       </div>
 
       {/* Payroll Table */}
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
-        <table className="w-full">
+      <div className="bg-white rounded-xl shadow overflow-hidden">
+        <div className="max-h-[600px] overflow-auto">
+          <table className="w-full">
           <thead>
             <tr className="bg-slate-100 text-slate-700">
-              <th className="px-4 py-3 border-b border-r text-left font-semibold">
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
                 Worker
               </th>
 
-              <th className="px-4 py-3 border-b border-r text-left font-semibold">
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
+                Project
+              </th>
+
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
                 Day Hours
               </th>
 
-              <th className="px-4 py-3 border-b border-r text-left font-semibold">
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
                 Day Rate
               </th>
 
-              <th className="px-4 py-3 border-b border-r text-left font-semibold">
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
                 Night Hours
               </th>
 
-              <th className="px-4 py-3 border-b border-r text-left font-semibold">
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
                 Night Rate
               </th>
 
-              <th className="px-4 py-3 border-b border-r text-left font-semibold">
+              <th className="sticky top-0 bg-slate-100 z-10 px-4 py-3 border-b border-r text-left font-semibold">
                 Total Hours
               </th>
 
-              <th className="px-4 py-3 border-b text-left font-semibold">
+              <th className="sticky top-0 z-20 bg-slate-100 px-4 py-3 border-b text-left font-semibold">
                 Amount
               </th>
             </tr>
@@ -294,28 +417,58 @@ export default async function PayrollPage({
             {payroll.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="text-center py-8 text-gray-500"
                 >
                   No payroll data found for selected dates.
                 </td>
               </tr>
             ) : (
-              payroll.map(
+              payrollRows.map(
                 (
                   row: any,
                   index
-                ) => (
-                  <tr
-                    key={row.name}
-                    className={
-                      index % 2 === 0
-                        ? "bg-white"
-                        : "bg-slate-50"
-                    }
+                ) => {
+
+                  if (row.isTotal) {
+                    return (
+                      <tr
+                        key={`total-${row.workerName}`}
+                        className="bg-slate-200 font-bold"
+                      >
+                        <td
+                          colSpan={6}
+                          className="px-4 py-3 border-b text-right"
+                        >
+                          {row.workerName} TOTAL
+                        </td>
+
+                        <td className="px-4 py-3 border-b">
+                          {row.totalHours.toFixed(2)}
+                        </td>
+
+                        <td className="px-4 py-3 border-b">
+                          ${row.amount.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr
+                      key={`${row.workerName}-${row.projectName}`}
+                                  className={
+                                    index % 2 === 0
+                                      ? "bg-white"
+                                      : "bg-slate-50"
+                                  }
                   >
                     <td className="px-4 py-3 border-b border-r">
-                      {row.name}
+                      {row.workerName}
+                    </td>
+
+                    <td className="px-4 py-3 border-b border-r">
+                      {row.projectName}
                     </td>
 
                     <td className="px-4 py-3 border-b border-r">
@@ -325,10 +478,9 @@ export default async function PayrollPage({
                     </td>
 
                     <td className="px-4 py-3 border-b border-r">
-                      $
-                      {row.dayRate.toFixed(
-                        2
-                      )}
+                      {row.dayHours > 0
+                        ? `$${row.dayRate.toFixed(2)}`
+                        : "-"}
                     </td>
 
                     <td className="px-4 py-3 border-b border-r">
@@ -338,10 +490,9 @@ export default async function PayrollPage({
                     </td>
 
                     <td className="px-4 py-3 border-b border-r">
-                      $
-                      {row.nightRate.toFixed(
-                        2
-                      )}
+                      {row.nightHours > 0
+                        ? `$${row.nightRate.toFixed(2)}`
+                        : "-"}
                     </td>
 
                     <td className="px-4 py-3 border-b border-r font-medium">
@@ -370,11 +521,13 @@ export default async function PayrollPage({
                     </td>
                   </tr>
                 )
+              }
               )
             )}
           </tbody>
-        </table>
+       </table>
       </div>
+    </div>
     </div>
   );
 }

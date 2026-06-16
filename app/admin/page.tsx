@@ -7,23 +7,53 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    search?: string;
-  }>;
+      searchParams: Promise<{
+      search?: string;
+      page?: string;
+    }>;
 }) {
   const params = await searchParams;
 
   const search =
     params.search?.trim() || "";
 
-  const { data: entries, error } = await supabaseServer
-    .from("work_entries")
-    .select(`
-      *,
-      workers(name),
-      projects(name)
-    `)
-    .order("work_date", { ascending: false });
+  const page = Number(params.page || "1");
+  const PAGE_SIZE = 10;
+
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  let query = supabaseServer
+      .from("work_entries")
+      .select(
+        `
+          *,
+          workers(name),
+          projects(name)
+        `,
+        { count: "exact" }
+      );
+
+    if (search) {
+      query = query.ilike(
+        "workers.name",
+        `%${search}%`
+      );
+    }
+
+    const {
+      data: entries,
+      error,
+      count,
+    } = await query
+      .order("work_date", {
+        ascending: false,
+      })
+      .range(from, to);
+
+    const totalPages = Math.ceil(
+      (count || 0) / PAGE_SIZE
+    );
 
   // Get counts for menu cards
   const [{ count: workerCount }, { count: projectCount }] =
@@ -38,14 +68,7 @@ export default async function AdminPage({
     ]);
 
   
-
-  const filteredEntries = search
-  ? entries?.filter((entry) =>
-      entry.workers?.name
-        ?.toLowerCase()
-        .includes(search.toLowerCase())
-    )
-  : entries;
+  const filteredEntries = entries || [];
 
   const totalEntries =
   filteredEntries?.length || 0;
@@ -288,6 +311,37 @@ export default async function AdminPage({
               ))}
             </tbody>
           </table>
+
+          <div className="mt-4 text-sm text-gray-500 text-center">
+            Showing {(page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, count || 0)}
+            {" "}of {count || 0} records
+          </div>
+
+          {/* Pagination */}
+          <div className="flex justify-center items-center gap-3 mt-6">
+            {page > 1 && (
+              <a
+                href={`/admin?search=${search}&page=${page - 1}`}
+                className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300"
+              >
+                ← Previous
+              </a>
+            )}
+
+            <span className="font-medium">
+              Page {page} of {totalPages}
+            </span>
+
+            {page < totalPages && (
+              <a
+                href={`/admin?search=${search}&page=${page + 1}`}
+                className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300"
+              >
+                Next →
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -16,6 +16,15 @@ export async function POST(req: Request) {
     ]);
 
   if (error) {
+    // PostgreSQL unique constraint
+    if (error.code === "23505") {
+      return NextResponse.json(
+        {
+          error: `Worker "${body.name}" already exists. Please use a different name.`,
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: error.message },
       { status: 400 }
