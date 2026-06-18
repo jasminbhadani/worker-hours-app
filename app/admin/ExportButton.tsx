@@ -15,9 +15,16 @@ export default function ExportButton({
     ];
 
     const rows = entries.map((entry) => [
-      entry.worker_name,
-      entry.job_site,
-      entry.work_date,
+      entry.workers?.name || "",
+      entry.projects?.name || "",
+      new Date(entry.work_date).toLocaleDateString(
+        "en-US",
+        {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        }
+      ),
       entry.hours_worked,
       entry.shift,
     ]);

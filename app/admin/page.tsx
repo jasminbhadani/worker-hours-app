@@ -1,109 +1,228 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { supabaseServer } from "../../lib/supabase-server";
 import ExportButton from "./ExportButton";
+import WorkEntryActions from "./WorkEntryActions";
 
 export const dynamic = "force-dynamic";
+
+type AdminSearchParams = Promise<{
+  search?: string;
+  project?: string;
+  from?: string;
+  to?: string;
+  page?: string;
+  status?: string;
+  message?: string;
+}>;
+
+type WorkerOption = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+type ProjectOption = {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+type WorkEntryRow = {
+  id: string;
+  worker_id: string;
+  project_id: string;
+  work_date: string;
+  hours_worked: number;
+  shift: string;
+  workers: {
+    name: string;
+  } | null;
+  projects: {
+    name: string;
+  } | null;
+};
+
+const PAGE_SIZE = 10;
 
 export default async function AdminPage({
   searchParams,
 }: {
-      searchParams: Promise<{
-      search?: string;
-      page?: string;
-    }>;
+  searchParams: AdminSearchParams;
 }) {
   const params = await searchParams;
+  const search = params.search?.trim() || "";
+  const projectFilter =
+    params.project?.trim() || "";
+  const fromDate =
+    params.from?.trim() || "";
+  const toDate = params.to?.trim() || "";
 
-  const search =
-    params.search?.trim() || "";
-
-  const page = Number(params.page || "1");
-  const PAGE_SIZE = 10;
+  const requestedPage = Number(
+    params.page || "1"
+  );
+  const page = Number.isNaN(requestedPage)
+    ? 1
+    : Math.max(requestedPage, 1);
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   let query = supabaseServer
-      .from("work_entries")
-      .select(
-        `
-          *,
-          workers(name),
-          projects(name)
-        `,
-        { count: "exact" }
-      );
+    .from("work_entries")
+    .select(
+      `
+        id,
+        worker_id,
+        project_id,
+        work_date,
+        hours_worked,
+        shift,
+        workers(name),
+        projects(name)
+      `,
+      { count: "exact" }
+    )
+    .order("work_date", {
+      ascending: false,
+    });
 
-    
-    query = query.order(
-      "work_date",
-      { ascending: false }
+  if (search) {
+    query = query.eq("worker_id", search);
+  }
+
+  if (projectFilter) {
+    query = query.eq(
+      "project_id",
+      projectFilter
     );
+  }
 
-    if (!search) {
-      query = query.range(
-        from,
-        to
-      );
-    }
+  if (fromDate) {
+    query = query.gte("work_date", fromDate);
+  }
 
-const {
-  data: entries,
-  error,
-  count,
-} = await query;
+  if (toDate) {
+    query = query.lte("work_date", toDate);
+  }
 
-    const totalPages = search
-      ? 1
-      : Math.ceil(
-          (count || 0) / PAGE_SIZE
-        );
+  if (!search) {
+    query = query.range(from, to);
+  }
 
-  // Get counts for menu cards
-  const [{ count: workerCount }, { count: projectCount }] =
-    await Promise.all([
-      supabaseServer
-        .from("workers")
-        .select("*", { count: "exact", head: true }),
-
-      supabaseServer
-        .from("projects")
-        .select("*", { count: "exact", head: true }),
-    ]);
-
-  
-  const filteredEntries =
-  search
-    ? (entries || []).filter((entry) =>
-        entry.workers?.name
-          ?.toLowerCase()
-          .includes(
-            search.toLowerCase()
-          )
-      )
-    : entries || [];
-
-  const totalEntries =
-  filteredEntries?.length || 0;
-
-  const totalHours =
-    filteredEntries?.reduce(
-      (sum, entry) => sum + Number(entry.hours_worked),
-      0
-    ) || 0;
-
-  const uniqueWorkers =
-    new Set(
-      filteredEntries?.map((entry) => entry.workers?.name)
-    ).size || 0;
+  const {
+    data: entries,
+    error,
+    count,
+  } = await query;
 
   if (error) {
     return <div>Error loading records</div>;
   }
 
+  const totalPages = search
+    ? Math.max(
+        1,
+        Math.ceil((count || 0) / PAGE_SIZE)
+      )
+    : Math.max(
+        1,
+        Math.ceil((count || 0) / PAGE_SIZE)
+      );
+
+  if (page > totalPages) {
+    const redirectParams =
+      new URLSearchParams();
+
+    if (search) {
+      redirectParams.set("search", search);
+    }
+
+    if (projectFilter) {
+      redirectParams.set(
+        "project",
+        projectFilter
+      );
+    }
+
+    if (fromDate) {
+      redirectParams.set("from", fromDate);
+    }
+
+    if (toDate) {
+      redirectParams.set("to", toDate);
+    }
+
+    if (totalPages > 1) {
+      redirectParams.set(
+        "page",
+        String(totalPages)
+      );
+    }
+
+    const redirectQuery =
+      redirectParams.toString();
+
+    redirect(
+      redirectQuery
+        ? `/admin?${redirectQuery}`
+        : "/admin"
+    );
+  }
+
+  const [
+    { count: activeWorkerCount },
+    { count: activeProjectCount },
+    { data: workers },
+    { data: projects },
+  ] = await Promise.all([
+    supabaseServer
+      .from("workers")
+      .select("*", {
+        count: "exact",
+        head: true,
+      })
+      .eq("active", true),
+    supabaseServer
+      .from("projects")
+      .select("*", {
+        count: "exact",
+        head: true,
+      })
+      .eq("active", true),
+    supabaseServer
+      .from("workers")
+      .select("id, name, active")
+      .order("name"),
+    supabaseServer
+      .from("projects")
+      .select("id, name, active")
+      .order("name"),
+  ]);
+
+  const safeEntries = (entries ||
+    []) as WorkEntryRow[];
+
+  const filteredEntries = safeEntries;
+
+  const totalEntries =
+    filteredEntries.length;
+
+  const totalHours = filteredEntries.reduce(
+    (sum, entry) =>
+      sum + Number(entry.hours_worked),
+    0
+  );
+
+  const uniqueWorkers = new Set(
+    filteredEntries.map(
+      (entry) => entry.workers?.name
+    )
+  ).size;
+
   return (
     <div className="min-h-screen bg-slate-100 p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-800">
             Work Entries Dashboard
@@ -115,9 +234,20 @@ const {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-blue-600 text-white rounded-xl p-5 shadow">
+      {params.message && (
+        <div
+          className={`mb-4 rounded-xl px-4 py-3 text-sm font-medium ${
+            params.status === "error"
+              ? "bg-red-100 text-red-700"
+              : "bg-green-100 text-green-700"
+          }`}
+        >
+          {params.message}
+        </div>
+      )}
+
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl bg-blue-600 p-5 text-white shadow">
           <p className="text-sm opacity-80">
             Total Entries
           </p>
@@ -126,7 +256,7 @@ const {
           </h2>
         </div>
 
-        <div className="bg-green-600 text-white rounded-xl p-5 shadow">
+        <div className="rounded-xl bg-green-600 p-5 text-white shadow">
           <p className="text-sm opacity-80">
             Total Hours
           </p>
@@ -135,240 +265,403 @@ const {
           </h2>
         </div>
 
-        <div className="bg-purple-600 text-white rounded-xl p-5 shadow">
+        <div className="rounded-xl bg-purple-600 p-5 text-white shadow">
           <p className="text-sm opacity-80">
             Active Workers
           </p>
           <h2 className="text-3xl font-bold">
-            {uniqueWorkers}
+            {activeWorkerCount || 0}
+          </h2>
+        </div>
+
+        <div className="rounded-xl bg-emerald-600 p-5 text-white shadow">
+          <p className="text-sm opacity-80">
+            Active Projects
+          </p>
+          <h2 className="text-3xl font-bold">
+            {activeProjectCount || 0}
           </h2>
         </div>
       </div>
 
-      {/* MENU CARDS */}
-      {/* MENU CARDS */}
-<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-
-  <Link
-    href="/admin/workers"
-    className="bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-xl p-6 shadow hover:scale-105 transition"
-  >
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="opacity-80">
-          Workers
-        </p>
-
-        <h2 className="text-3xl font-bold mt-2">
-          {workerCount || 0}
-        </h2>
-
-        <p className="text-sm mt-3 opacity-80">
-          Manage workers
-        </p>
-      </div>
-
-      <div className="text-4xl">
-        👷
-      </div>
-    </div>
-  </Link>
-
-  <Link
-    href="/admin/projects"
-    className="bg-gradient-to-r from-emerald-500 to-emerald-700 text-white rounded-xl p-6 shadow hover:scale-105 transition"
-  >
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="opacity-80">
-          Projects
-        </p>
-
-        <h2 className="text-3xl font-bold mt-2">
-          {projectCount || 0}
-        </h2>
-
-        <p className="text-sm mt-3 opacity-80">
-          Job sites
-        </p>
-      </div>
-
-      <div className="text-4xl">
-        🏗️
-      </div>
-    </div>
-  </Link>
-
-  <Link
-    href="/admin/payroll"
-    className="bg-gradient-to-r from-orange-500 to-orange-700 text-white rounded-xl p-6 shadow hover:scale-105 transition"
-  >
-    <div className="flex justify-between items-start">
-      <div>
-        <p className="opacity-80">
-          Payroll
-        </p>
-
-        <h2 className="text-3xl font-bold mt-2">
-          💵
-        </h2>
-
-        <p className="text-sm mt-3 opacity-80">
-          Weekly payroll reports
-        </p>
-      </div>
-
-      <div className="text-4xl">
-        📄
-      </div>
-    </div>
-  </Link>
-
-</div>
-
-      {/* Actions */}
-      <form className="flex gap-3 mb-4">
-        <ExportButton
-          entries={filteredEntries || []}
-        />
-
-        <input
-          type="text"
-          name="search"
-          defaultValue={search}
-          placeholder="Search worker..."
-          className="border p-2 rounded w-64"
-        />
-
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Link
+          href="/admin/workers"
+          className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-700 p-6 text-white shadow transition hover:scale-105"
         >
-          Search
-        </button>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="opacity-80">
+                Workers
+              </p>
 
-        {search && (
-          <a
-            href="/admin"
-            className="bg-slate-500 text-white px-4 py-2 rounded hover:bg-slate-600"
-          >
-            Clear
-          </a>
-        )}
-      </form>
+              <h2 className="mt-2 text-3xl font-bold">
+                View
+              </h2>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow overflow-x-auto">
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <p className="mt-3 text-sm opacity-80">
+                Manage workers
+              </p>
+            </div>
+
+            <div className="text-4xl">
+              👷
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/admin/projects"
+          className="rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-700 p-6 text-white shadow transition hover:scale-105"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="opacity-80">
+                Projects
+              </p>
+
+              <h2 className="mt-2 text-3xl font-bold">
+                View
+              </h2>
+
+              <p className="mt-3 text-sm opacity-80">
+                Job sites
+              </p>
+            </div>
+
+            <div className="text-4xl">
+              🏗️
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/admin/payroll"
+          className="rounded-xl bg-gradient-to-r from-orange-500 to-orange-700 p-6 text-white shadow transition hover:scale-105"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="opacity-80">
+                Payroll
+              </p>
+
+              <h2 className="mt-2 text-3xl font-bold">
+                View
+              </h2>
+
+              <p className="mt-3 text-sm opacity-80">
+                Weekly payroll reports
+              </p>
+            </div>
+
+            <div className="text-4xl">
+              💵
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <form className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="worker-filter"
+              className="text-sm font-medium text-slate-700"
+            >
+              Worker
+            </label>
+
+            <select
+              id="worker-filter"
+              name="search"
+              defaultValue={search}
+              className="w-64 rounded border p-2"
+            >
+              <option value="">
+                All workers
+              </option>
+
+              {((workers || []) as WorkerOption[]).map(
+                (worker) => (
+                  <option
+                    key={worker.id}
+                    value={worker.id}
+                  >
+                    {worker.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="project-filter"
+              className="text-sm font-medium text-slate-700"
+            >
+              Project
+            </label>
+
+            <select
+              id="project-filter"
+              name="project"
+              defaultValue={projectFilter}
+              className="w-64 rounded border p-2"
+            >
+              <option value="">
+                All projects
+              </option>
+
+              {((projects || []) as ProjectOption[]).map(
+                (project) => (
+                  <option
+                    key={project.id}
+                    value={project.id}
+                  >
+                    {project.name}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="from-date"
+              className="text-sm font-medium text-slate-700"
+            >
+              From
+            </label>
+
+            <input
+              id="from-date"
+              type="date"
+              name="from"
+              defaultValue={fromDate}
+              className="rounded border p-2"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="to-date"
+              className="text-sm font-medium text-slate-700"
+            >
+              To
+            </label>
+
+            <input
+              id="to-date"
+              type="date"
+              name="to"
+              defaultValue={toDate}
+              className="rounded border p-2"
+            />
+          </div>
+
+          <button className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+            Search
+          </button>
+
+          {(search ||
+            projectFilter ||
+            fromDate ||
+            toDate) && (
+            <a
+              href="/admin"
+              className="rounded bg-slate-500 px-4 py-2 text-white hover:bg-slate-600"
+            >
+              Clear
+            </a>
+          )}
+        </form>
+
+        <div className="flex items-end">
+          <ExportButton
+            entries={filteredEntries || []}
+          />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl bg-white shadow">
+        <div className="overflow-hidden rounded-xl bg-white shadow-sm">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-100 text-slate-700">
-                <th className="px-4 py-3 border-b border-r text-left font-semibold">
+                <th className="border-b border-r px-4 py-3 text-left font-semibold">
                   Worker
                 </th>
 
-                <th className="px-4 py-3 border-b border-r text-left font-semibold">
+                <th className="border-b border-r px-4 py-3 text-left font-semibold">
                   Job Site
                 </th>
 
-                <th className="px-4 py-3 border-b border-r text-left font-semibold">
-                  Date (MM-DD-YYYY)
+                <th className="border-b border-r px-4 py-3 text-left font-semibold">
+                  Date (MM/DD/YYYY)
                 </th>
 
-                <th className="px-4 py-3 border-b border-r text-left font-semibold">
+                <th className="border-b border-r px-4 py-3 text-left font-semibold">
                   Hours
                 </th>
 
-                <th className="px-4 py-3 border-b border-r text-left font-semibold">
+                <th className="border-b border-r px-4 py-3 text-left font-semibold">
                   Shift
+                </th>
+
+                <th className="border-b px-4 py-3 text-left font-semibold">
+                  Actions
                 </th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredEntries?.map((entry, index) => (
-                <tr
-                  key={entry.id}
-                  className={
-                    index % 2 === 0
-                      ? "bg-white"
-                      : "bg-slate-50"
-                  }
-                >
-                  <td className="px-4 py-3 border-b border-r">
-                    {entry.workers?.name}
-                  </td>
-
-                  <td className="px-4 py-3 border-b border-r">
-                    {entry.projects?.name}
-                  </td>
-
-                  <td className="px-4 py-3 border-b border-r">
-                    {new Date(entry.work_date).toLocaleDateString(
-                      "en-US",
-                      {
-                        month: "2-digit",
-                        day: "2-digit",
-                        year: "numeric",
-                      }
-                    ).replace(/\//g, "-")}
-                  </td>
-
-                  <td className="px-4 py-3 border-b border-r">
-                    {entry.hours_worked}
-                  </td>
-
-                  <td className="px-4 py-3 border-b border-r">
-                    {entry.shift}
+              {filteredEntries.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-4 py-8 text-center text-slate-500"
+                  >
+                    No work entries found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredEntries.map(
+                  (entry, index) => (
+                    <tr
+                      key={entry.id}
+                      className={
+                        index % 2 === 0
+                          ? "bg-white"
+                          : "bg-slate-50"
+                      }
+                    >
+                      <td className="border-b border-r px-4 py-3">
+                        {entry.workers?.name}
+                      </td>
+
+                      <td className="border-b border-r px-4 py-3">
+                        {entry.projects?.name}
+                      </td>
+
+                      <td className="border-b border-r px-4 py-3">
+                        {new Date(
+                          entry.work_date
+                        )
+                          .toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "2-digit",
+                              day: "2-digit",
+                              year: "numeric",
+                            }
+                          )}
+                      </td>
+
+                      <td className="border-b border-r px-4 py-3">
+                        {entry.hours_worked}
+                      </td>
+
+                      <td className="border-b border-r px-4 py-3">
+                        {entry.shift}
+                      </td>
+
+                      <td className="border-b px-4 py-3">
+                        <WorkEntryActions
+                          entry={entry}
+                          workers={
+                            (workers ||
+                              []) as WorkerOption[]
+                          }
+                          projects={
+                            (projects ||
+                              []) as ProjectOption[]
+                          }
+                          currentPage={page}
+                          search={search}
+                          project={projectFilter}
+                          from={fromDate}
+                          to={toDate}
+                        />
+                      </td>
+                    </tr>
+                  )
+                )
+              )}
             </tbody>
           </table>
 
-          <div className="mt-4 text-sm text-gray-500 text-center">
-            {search ? (
-              <>
-                Showing {filteredEntries.length} of{" "}
-                {filteredEntries.length} records
-              </>
-            ) : (
-              <>
-                Showing {(page - 1) * PAGE_SIZE + 1}–
-                {Math.min(
-                  page * PAGE_SIZE,
-                  count || 0
-                )}{" "}
-                of {count || 0} records
-              </>
-            )}
+          <div className="mt-4 text-center text-sm text-gray-500">
+            <>
+              Showing{" "}
+              {count
+                ? (page - 1) * PAGE_SIZE + 1
+                : 0}
+              -
+              {Math.min(
+                page * PAGE_SIZE,
+                count || 0
+              )}{" "}
+              of {count || 0} records
+            </>
           </div>
 
-          {/* Pagination */}
-          {!search && (
-            <div className="flex justify-center items-center gap-3 mt-6">
-            {page > 1 && (
-              <a
-                href={`/admin?search=${search}&page=${page - 1}`}
-                className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300"
-              >
-                ← Previous
-              </a>
-            )}
+          <div className="mt-6 flex items-center justify-center gap-3">
+              {page > 1 && (
+                <a
+                  href={`/admin?${new URLSearchParams({
+                    ...(search
+                      ? { search }
+                      : {}),
+                    ...(projectFilter
+                      ? {
+                          project:
+                            projectFilter,
+                        }
+                      : {}),
+                    ...(fromDate
+                      ? { from: fromDate }
+                      : {}),
+                    ...(toDate
+                      ? { to: toDate }
+                      : {}),
+                    page: String(page - 1),
+                  }).toString()}`}
+                  className="rounded bg-slate-200 px-4 py-2 hover:bg-slate-300"
+                >
+                  Previous
+                </a>
+              )}
 
-            <span className="font-medium">
-              Page {page} of {totalPages}
-            </span>
+              <span className="font-medium">
+                Page {page} of {totalPages}
+              </span>
 
-            {page < totalPages && (
-              <a
-                href={`/admin?search=${search}&page=${page + 1}`}
-                className="px-4 py-2 bg-slate-200 rounded hover:bg-slate-300"
-              >
-                Next →
-              </a>
-            )}
-          </div>
-         )} 
+              {page < totalPages && (
+                <a
+                  href={`/admin?${new URLSearchParams({
+                    ...(search
+                      ? { search }
+                      : {}),
+                    ...(projectFilter
+                      ? {
+                          project:
+                            projectFilter,
+                        }
+                      : {}),
+                    ...(fromDate
+                      ? { from: fromDate }
+                      : {}),
+                    ...(toDate
+                      ? { to: toDate }
+                      : {}),
+                    page: String(page + 1),
+                  }).toString()}`}
+                  className="rounded bg-slate-200 px-4 py-2 hover:bg-slate-300"
+                >
+                  Next
+                </a>
+              )}
+            </div>
         </div>
       </div>
     </div>
