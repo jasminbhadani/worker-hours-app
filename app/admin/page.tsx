@@ -200,8 +200,8 @@ export default async function AdminPage({
       .order("name"),
   ]);
 
-  const safeEntries = (entries ||
-    []) as WorkEntryRow[];
+  const safeEntries =
+    (entries || []) as unknown as WorkEntryRow[];
 
   const filteredEntries = safeEntries;
 
