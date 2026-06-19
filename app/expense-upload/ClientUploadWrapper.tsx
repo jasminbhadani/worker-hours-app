@@ -1,6 +1,22 @@
 "use client";
-import UploadForm from './UploadForm';
+import UploadForm from "./UploadForm";
 
-export default function ClientUploadWrapper({ workers, projects }: any) {
+type WorkerOption = {
+  id: string;
+  name: string;
+};
+
+type ProjectOption = {
+  id: string;
+  name: string;
+};
+
+export default function ClientUploadWrapper({
+  workers,
+  projects,
+}: {
+  workers: WorkerOption[];
+  projects: ProjectOption[];
+}) {
   return <UploadForm workers={workers} projects={projects} />;
 }

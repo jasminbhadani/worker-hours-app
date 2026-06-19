@@ -3,6 +3,19 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+type ExpenseListItem = {
+  id: string;
+  invoice_date: string | null;
+  amount: number | null;
+  ocr_status: string | null;
+  approval_status: string | null;
+  created_at: string | null;
+  vendor_name: string | null;
+  uploaded_by_worker_name: string | null;
+  workers: Array<{ name: string | null }> | null;
+  projects: Array<{ name: string | null }> | null;
+};
+
 export default async function AdminExpensesPage({
   searchParams,
 }: {
@@ -31,6 +44,7 @@ export default async function AdminExpensesPage({
       id,
       invoice_date,
       amount,
+      ocr_status,
       approval_status,
       created_at,
       vendor_name,
@@ -50,15 +64,17 @@ export default async function AdminExpensesPage({
     );
   }
 
-  const filteredExpenses = (expenses || []).filter((expense: any) => {
+  const filteredExpenses = (
+    (expenses || []) as ExpenseListItem[]
+  ).filter((expense) => {
     const workerName = (
       expense.uploaded_by_worker_name ||
-      expense.workers?.name ||
+      expense.workers?.[0]?.name ||
       ""
     ).toLowerCase();
 
     const projectName = (
-      expense.projects?.name || ""
+      expense.projects?.[0]?.name || ""
     ).toLowerCase();
 
     const vendorName = (
@@ -187,11 +203,19 @@ export default async function AdminExpensesPage({
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
+                    Vendor
+                  </th>
+
+                  <th className="px-4 py-3 border-b text-left">
                     Expense Date
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
                     Amount
+                  </th>
+
+                  <th className="px-4 py-3 border-b text-left">
+                    OCR Status
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
@@ -210,7 +234,7 @@ export default async function AdminExpensesPage({
 
               <tbody>
                 {paginatedExpenses.map(
-                  (expense: any, index: number) => (
+                  (expense, index: number) => (
                     <tr
                       key={expense.id}
                       className={
@@ -225,12 +249,16 @@ export default async function AdminExpensesPage({
 
                       <td className="px-4 py-3 border-b">
                         {expense.uploaded_by_worker_name ||
-                          expense.workers?.name ||
+                          expense.workers?.[0]?.name ||
                           "-"}
                       </td>
 
                       <td className="px-4 py-3 border-b">
-                        {expense.projects?.name || "-"}
+                        {expense.projects?.[0]?.name || "-"}
+                      </td>
+
+                      <td className="px-4 py-3 border-b">
+                        {expense.vendor_name || "-"}
                       </td>
 
                       <td className="px-4 py-3 border-b">
@@ -242,7 +270,16 @@ export default async function AdminExpensesPage({
                       </td>
 
                       <td className="px-4 py-3 border-b">
-                        {expense.amount ?? "-"}
+                        {typeof expense.amount === "number"
+                          ? new Intl.NumberFormat("en-US", {
+                              style: "currency",
+                              currency: "USD",
+                            }).format(expense.amount)
+                          : "-"}
+                      </td>
+
+                      <td className="px-4 py-3 border-b">
+                        {expense.ocr_status || "-"}
                       </td>
 
                       <td className="px-4 py-3 border-b">

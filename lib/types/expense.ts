@@ -5,6 +5,7 @@ export type Expense = {
   category?: 'Material' | 'Tools' | 'Fuel' | 'Misc' | null;
   uploaded_by_worker_name?: string | null;
   vendor_name?: string | null;
+  invoice_number?: string | null;
   invoice_date?: string | null;
   amount?: number | null;
   tax_amount?: number | null;
@@ -26,6 +27,11 @@ export type ExpenseInsert = {
   project_id?: string | null;
   uploaded_by_worker_name?: string | null;
   category?: 'Material' | 'Tools' | 'Fuel' | 'Misc' | null;
+  vendor_name?: string | null;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  amount?: number | null;
+  tax_amount?: number | null;
   file_name?: string | null;
   mime_type?: string | null;
   invoice_file_url?: string | null;

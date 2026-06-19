@@ -1,14 +1,37 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
+import { getExpenseBucketName } from "@/lib/expense-storage";
+import { runExpenseOCR } from "@/lib/ocr";
 import { supabaseServer } from "@/lib/supabase-server";
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED = ['image/jpeg','image/png','image/webp','application/pdf','image/jpg'];
+const ALLOWED = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "image/jpg",
+];
+
+type ExpenseInsertPayload = {
+  worker_id: string | null;
+  project_id: string | null;
+  uploaded_by_worker_name: string | null;
+  category: string | null;
+  file_name: string;
+  mime_type: string;
+  storage_path: string;
+  invoice_file_url: string;
+  notes: string | null;
+  ocr_status: "pending";
+  approval_status: "pending";
+};
 
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
 
-    const file = form.get('invoice_file') as any;
+    const fileEntry = form.get("invoice_file");
     const worker_id = (form.get('worker_id') as string) || null;
     let uploaded_by_worker_name = (form.get('uploaded_by_worker_name') as string) || null;
     const project_id = (form.get('project_id') as string) || null;
@@ -21,10 +44,12 @@ export async function POST(req: Request) {
     console.log('category:', category);
     console.log('notes present:', !!notes);
 
-    if (!file || typeof file === 'string') {
+    if (!(fileEntry instanceof File)) {
       console.error('No file provided in form data');
       return NextResponse.json({ error: 'File is required' }, { status: 400 });
     }
+
+    const file = fileEntry;
 
     console.log('File name:', file.name, 'type:', file.type);
     const arrayBuffer = await file.arrayBuffer();
@@ -46,7 +71,7 @@ export async function POST(req: Request) {
     const unique = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `${year}/${month}/${unique}_${safeName}`;
-    const bucket = 'expense-invoices';
+    const bucket = getExpenseBucketName();
 
     console.log('Uploading to bucket:', bucket, 'storagePath:', storagePath);
 
@@ -72,12 +97,14 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       console.error('Exception during storage upload:', err);
-      return NextResponse.json({ error: 'Upload failed', details: (err as any)?.message ?? String(err) }, { status: 500 });
+      const message =
+        err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: 'Upload failed', details: message }, { status: 500 });
     }
 
     // Create DB record
     try {
-      const insertPayload: any = {
+      const insertPayload: ExpenseInsertPayload = {
         worker_id: worker_id || null,
         project_id: project_id || null,
         uploaded_by_worker_name: uploaded_by_worker_name || null,
@@ -99,13 +126,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Failed to create expense record', details: error?.message ?? String(error) }, { status: 500 });
       }
 
+      after(async () => {
+        await runExpenseOCR(data.id);
+      });
+
       return NextResponse.json({ ok: true, id: data.id, redirect: '/expense-upload/success' });
     } catch (err) {
       console.error('Exception during DB insert:', err);
-      return NextResponse.json({ error: 'Failed to create expense record', details: (err as any)?.message ?? String(err) }, { status: 500 });
+      const message =
+        err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: 'Failed to create expense record', details: message }, { status: 500 });
     }
   } catch (err) {
     console.error('Unhandled exception in upload route:', err);
-    return NextResponse.json({ error: 'Upload failed', details: (err as any)?.message ?? String(err) }, { status: 500 });
+    const message =
+      err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: 'Upload failed', details: message }, { status: 500 });
   }
 }
