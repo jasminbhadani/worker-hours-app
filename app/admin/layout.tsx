@@ -37,6 +37,13 @@ export default function AdminLayout({
           >
             Payroll
           </Link>
+
+          <Link
+            href="/admin/expenses"
+            className="text-blue-600 font-medium hover:underline"
+          >
+            Expenses
+          </Link>
         </div>
       </nav>
 
