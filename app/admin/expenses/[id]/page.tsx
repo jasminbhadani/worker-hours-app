@@ -43,10 +43,30 @@ export default async function AdminExpenseDetail({
 
   const { data: expense, error } = await supabaseServer
     .from("expenses")
-    .select("*, workers(name), projects(name)")
+    .select(`
+      *,
+      workers(name),
+      projects(name)
+    `)
     .eq("id", id)
     .single();
-
+  
+    console.log(
+      "DETAIL EXPENSE:",
+      JSON.stringify(expense, null, 2)
+    );
+  const project = expense?.project_id
+    ? await supabaseServer
+        .from("projects")
+        .select("name")
+        .eq("id", expense.project_id)
+        .single()
+    : null;
+  
+    console.log(
+      "EXPENSE DETAIL",
+      JSON.stringify(expense, null, 2)
+    );
   if (error || !expense) {
     return <div className="p-8">Expense not found</div>;
   }
@@ -62,9 +82,22 @@ export default async function AdminExpenseDetail({
   return (
     <div className="min-h-screen p-8 bg-slate-100">
       <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Expense Detail</h1>
-          <p className="text-slate-500">ID: {id}</p>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/expenses"
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+          >
+            ← Back to Expenses
+          </Link>
+
+          <div>
+            <h1 className="text-2xl font-bold">
+              Expense Detail
+            </h1>
+            <p className="text-slate-500">
+              ID: {id}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -130,7 +163,7 @@ export default async function AdminExpenseDetail({
               <p className="text-sm text-slate-500">
                 Project
               </p>
-              <p>{expense.projects?.[0]?.name || "-"}</p>
+              <p>{expense.projects?.name || "-"}</p>
             </div>
 
             <div>

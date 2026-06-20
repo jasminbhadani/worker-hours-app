@@ -25,15 +25,6 @@ export async function getInvoiceSignedUrl(
     return null;
   }
 
-  const listResult = await supabaseServer.storage
-  .from(EXPENSE_BUCKET)
-  .list("2026/06");
-
-  console.log(
-    "LIST RESULT:",
-    JSON.stringify(listResult, null, 2)
-  );
-  
   const { data, error } = await supabaseServer.storage
     .from(EXPENSE_BUCKET)
     .createSignedUrl(normalizedPath, SIGNED_URL_TTL_SECONDS);

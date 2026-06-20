@@ -24,8 +24,10 @@ export default function UploadForm({
   const [workerId, setWorkerId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [category, setCategory] = useState("Material");
+  const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [language, setLanguage] = useState<"en" | "es">("en");
 
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -33,6 +35,36 @@ export default function UploadForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+  const text = {
+    en: {
+      contractor: "Contractor",
+      selectContractor: "Select Contractor",
+      project: "Project",
+      selectProject: "Select Project",
+      category: "Category",
+      notes: "Notes",
+      uploadInvoice: "Upload Invoice",
+      chooseFile: "Choose File / Take Photo",
+      submit: "Submit Invoice",
+      uploading: "Uploading...",
+    },
+
+    es: {
+      contractor: "Contratista",
+      selectContractor: "Seleccione Contratista",
+      project: "Proyecto",
+      selectProject: "Seleccione Proyecto",
+      category: "Categoría",
+      notes: "Notas",
+      uploadInvoice: "Subir Factura",
+      chooseFile: "Elegir Archivo / Tomar Foto",
+      submit: "Enviar Factura",
+      uploading: "Subiendo...",
+    },
+  };
+
+  const t = text[language];
 
   const handleFileSelect = (selectedFile: File | null) => {
     setError("");
@@ -79,7 +111,11 @@ export default function UploadForm({
     setError("");
 
     if (!workerId) {
-      setError("Please select a worker.");
+      setError(
+        language === "en"
+          ? "Please select a contractor."
+          : "Seleccione un contratista."
+      );
       return;
     }
 
@@ -90,6 +126,15 @@ export default function UploadForm({
 
     if (!category) {
       setError("Please select a category.");
+      return;
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      setError(
+        language === "en"
+          ? "Please enter amount."
+          : "Ingrese el monto."
+      );
       return;
     }
 
@@ -107,7 +152,10 @@ export default function UploadForm({
       formData.append("worker_id", workerId);
       formData.append("project_id", projectId);
       formData.append("category", category);
+      formData.append("amount", amount);
       formData.append("notes", notes);
+
+      console.log("amount being sent:", amount);
 
       console.log("Sending upload request...");
 
@@ -144,6 +192,20 @@ export default function UploadForm({
     }
   };
 
+  <div className="flex justify-end mb-4">
+    <button
+      type="button"
+      onClick={() =>
+        setLanguage(language === "en" ? "es" : "en")
+      }
+      className="text-sm text-blue-600 font-medium"
+    >
+      {language === "en"
+        ? "🇪🇸 Español"
+        : "🇺🇸 English"}
+    </button>
+  </div>
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -152,7 +214,7 @@ export default function UploadForm({
       {/* Worker */}
       <div>
         <label className="mb-2 block text-sm font-medium">
-          Worker
+          {t.contractor}
         </label>
 
         <select
@@ -161,7 +223,9 @@ export default function UploadForm({
           className="w-full rounded-lg border p-3"
           required
         >
-          <option value="">Select Worker</option>
+          <option value="">
+            {t.selectContractor}
+          </option>
 
           {workers.map((worker) => (
             <option
@@ -177,7 +241,7 @@ export default function UploadForm({
       {/* Project */}
       <div>
         <label className="mb-2 block text-sm font-medium">
-          Project
+          {t.project}
         </label>
 
         <select
@@ -186,7 +250,9 @@ export default function UploadForm({
           className="w-full rounded-lg border p-3"
           required
         >
-          <option value="">Select Project</option>
+          <option value="">
+            {t.selectProject}
+          </option>
 
           {projects.map((project) => (
             <option
@@ -202,7 +268,7 @@ export default function UploadForm({
       {/* Category */}
       <div>
         <label className="mb-2 block text-sm font-medium">
-          Category
+          {t.category}
         </label>
 
         <select
@@ -217,6 +283,23 @@ export default function UploadForm({
           <option value="Misc">Misc</option>
         </select>
       </div>
+      
+      <div>
+        <label className="mb-2 block text-sm font-medium">
+          Amount *
+        </label>
+
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-full rounded-lg border p-3"
+          placeholder="0.00"
+          required
+        />
+      </div>
 
       {/* Upload Area */}
       <div
@@ -227,7 +310,7 @@ export default function UploadForm({
         <div className="mb-3 text-5xl">📷</div>
 
         <h3 className="font-semibold">
-          Upload Invoice
+          {t.uploadInvoice}
         </h3>
 
         <p className="mt-2 text-sm text-slate-500">
@@ -241,7 +324,7 @@ export default function UploadForm({
           onClick={() => fileInputRef.current?.click()}
           className="mt-4 rounded-lg border px-4 py-2"
         >
-          Choose File / Take Photo
+          {t.chooseFile}
         </button>
 
         <input
@@ -273,7 +356,7 @@ export default function UploadForm({
       {/* Notes */}
       <div>
         <label className="mb-2 block text-sm font-medium">
-          Notes
+          {t.notes}
         </label>
 
         <textarea
@@ -296,8 +379,8 @@ export default function UploadForm({
         className="w-full rounded-lg bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
       >
         {uploading
-          ? "Uploading..."
-          : "Submit Invoice"}
+          ? t.uploading
+          : t.submit}
       </button>
     </form>
   );

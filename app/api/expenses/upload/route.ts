@@ -18,6 +18,7 @@ type ExpenseInsertPayload = {
   project_id: string | null;
   uploaded_by_worker_name: string | null;
   category: string | null;
+  amount: number | null;
   file_name: string;
   mime_type: string;
   storage_path: string;
@@ -37,12 +38,23 @@ export async function POST(req: Request) {
     const project_id = (form.get('project_id') as string) || null;
     const category = (form.get('category') as string) || null;
     const notes = (form.get('notes') as string) || null;
+    const amountRaw = (form.get('amount') as string) || "";
+    const amount = amountRaw ? Number(amountRaw) : null;
 
     console.log('Received upload request');
+    console.log("amountRaw:", amountRaw);
+    console.log("amount:", amount);
     console.log('worker_id:', worker_id);
     console.log('project_id:', project_id);
     console.log('category:', category);
     console.log('notes present:', !!notes);
+
+    if (!amount || amount <= 0) {
+      return NextResponse.json(
+        { error: "Amount is required" },
+        { status: 400 }
+      );
+    }
 
     if (!(fileEntry instanceof File)) {
       console.error('No file provided in form data');
@@ -109,6 +121,7 @@ export async function POST(req: Request) {
         project_id: project_id || null,
         uploaded_by_worker_name: uploaded_by_worker_name || null,
         category: category || null,
+        amount,
         file_name: file.name,
         mime_type: file.type,
         storage_path: storagePath,

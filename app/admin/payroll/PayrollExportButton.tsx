@@ -6,8 +6,13 @@ export default function PayrollExportButton({
   payroll: any[];
 }) {
   const downloadCSV = () => {
+    if (!payroll?.length) {
+      return;
+    }
+
     const headers = [
-      "Worker",
+      "Contractor",
+      "Project",
       "Day Hours",
       "Day Rate",
       "Night Hours",
@@ -17,13 +22,25 @@ export default function PayrollExportButton({
     ];
 
     const rows = payroll.map((row) => [
-      row.name,
-      row.dayHours.toFixed(2),
-      row.dayRate.toFixed(2),
-      row.nightHours.toFixed(2),
-      row.nightRate.toFixed(2),
-      row.totalHours.toFixed(2),
-      row.amount.toFixed(2),
+      row.workerName ||
+        row.contractorName ||
+        row.name ||
+        "",
+
+      row.projectName ||
+        row.project ||
+        "",
+
+      Number(row.dayHours || 0).toFixed(2),
+      Number(row.dayHours || 0) > 0
+        ? Number(row.dayRate || 0).toFixed(2)
+        : "-",
+      Number(row.nightHours || 0).toFixed(2),
+      Number(row.nightHours || 0) > 0
+      ? Number(row.nightRate || 0).toFixed(2)
+      : "-",
+      Number(row.totalHours || 0).toFixed(2),
+      Number(row.amount || 0).toFixed(2),
     ]);
 
     const csvContent = [
@@ -31,26 +48,24 @@ export default function PayrollExportButton({
       ...rows.map((row) => row.join(",")),
     ].join("\n");
 
-    const blob = new Blob(
-      [csvContent],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
 
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement("a");
 
     link.href = url;
-
     link.download = `payroll-${
-      new Date()
-        .toISOString()
-        .split("T")[0]
+      new Date().toISOString().split("T")[0]
     }.csv`;
 
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
   };
 
   return (

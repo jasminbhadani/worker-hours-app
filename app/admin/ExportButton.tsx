@@ -7,7 +7,7 @@ export default function ExportButton({
 }) {
   const downloadCSV = () => {
     const headers = [
-      "Worker",
+      "Contractor",
       "Job Site",
       "Date",
       "Hours",

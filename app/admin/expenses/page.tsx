@@ -1,20 +1,49 @@
 import { supabaseServer } from "@/lib/supabase-server";
 import Link from "next/link";
-
+import ApprovalButtons from "./ApprovalButtons";
+import { getInvoiceSignedUrl } from "@/lib/expense-storage";
 export const dynamic = "force-dynamic";
 
 type ExpenseListItem = {
   id: string;
-  invoice_date: string | null;
   amount: number | null;
-  ocr_status: string | null;
   approval_status: string | null;
   created_at: string | null;
   vendor_name: string | null;
   uploaded_by_worker_name: string | null;
-  workers: Array<{ name: string | null }> | null;
-  projects: Array<{ name: string | null }> | null;
+  storage_path: string | null;
+  file_name: string | null;
+  mime_type: string | null;
+  projects: {
+    name: string | null;
+  } | null;
+  invoiceUrl?: string | null;
 };
+function getStatusBadge(status: string | null) {
+  const value = (status || "pending").toLowerCase();
+
+  if (value === "approved") {
+    return (
+      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+        Approved
+      </span>
+    );
+  }
+
+  if (value === "rejected") {
+    return (
+      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">
+        Rejected
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
+      Pending
+    </span>
+  );
+}
 
 export default async function AdminExpensesPage({
   searchParams,
@@ -42,18 +71,21 @@ export default async function AdminExpensesPage({
     .from("expenses")
     .select(`
       id,
-      invoice_date,
       amount,
-      ocr_status,
       approval_status,
       created_at,
       vendor_name,
       uploaded_by_worker_name,
-      workers(name),
+      storage_path,
+      file_name,
+      mime_type,
       projects(name)
     `)
     .order("created_at", { ascending: false });
-
+  console.log(
+    "FIRST EXPENSE PROJECT SHAPE:",
+    JSON.stringify(expenses?.[0]?.projects, null, 2)
+  );  
   if (error) {
     return (
       <div className="min-h-screen p-8 bg-slate-100">
@@ -64,17 +96,17 @@ export default async function AdminExpensesPage({
     );
   }
 
+  
+
   const filteredExpenses = (
-    (expenses || []) as ExpenseListItem[]
+    (expenses || []) as unknown as ExpenseListItem[]
   ).filter((expense) => {
     const workerName = (
-      expense.uploaded_by_worker_name ||
-      expense.workers?.[0]?.name ||
-      ""
+      expense.uploaded_by_worker_name || ""
     ).toLowerCase();
-
+    
     const projectName = (
-      expense.projects?.[0]?.name || ""
+      expense.projects?.name || "-"
     ).toLowerCase();
 
     const vendorName = (
@@ -99,6 +131,14 @@ export default async function AdminExpensesPage({
     return matchesSearch && matchesStatus;
   });
 
+  const expensesWithUrls = await Promise.all(
+    filteredExpenses.map(async (expense) => ({
+      ...expense,
+      invoiceUrl: await getInvoiceSignedUrl(
+        expense.storage_path
+      ),
+    }))
+  );
   const totalRecords = filteredExpenses.length;
 
   const totalPages = Math.max(
@@ -108,7 +148,7 @@ export default async function AdminExpensesPage({
 
   const startIndex = (page - 1) * pageSize;
 
-  const paginatedExpenses = filteredExpenses.slice(
+  const paginatedExpenses = expensesWithUrls.slice(
     startIndex,
     startIndex + pageSize
   );
@@ -135,14 +175,14 @@ export default async function AdminExpensesPage({
               type="text"
               name="search"
               defaultValue={search}
-              placeholder="Worker, project or vendor"
+              placeholder="Contractor, project or vendor"
               className="border rounded-lg px-3 py-2 w-96"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">
-              Status
+              Approval Status
             </label>
 
             <select
@@ -190,12 +230,9 @@ export default async function AdminExpensesPage({
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-100 text-slate-700">
+                  
                   <th className="px-4 py-3 border-b text-left">
-                    Expense ID
-                  </th>
-
-                  <th className="px-4 py-3 border-b text-left">
-                    Worker Name
+                    Contractor Name
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
@@ -207,27 +244,23 @@ export default async function AdminExpensesPage({
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
-                    Expense Date
-                  </th>
-
-                  <th className="px-4 py-3 border-b text-left">
                     Amount
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
-                    OCR Status
-                  </th>
-
-                  <th className="px-4 py-3 border-b text-left">
-                    Status
+                    Approval Status
                   </th>
 
                   <th className="px-4 py-3 border-b text-left">
                     Uploaded On
                   </th>
 
-                  <th className="px-4 py-3 border-b text-left">
-                    Actions
+                  <th className="w-24 px-4 py-3 border-b text-center">
+                    Invoice
+                  </th>
+
+                  <th className="w-24 px-4 py-3 border-b text-center">
+                    Decision
                   </th>
                 </tr>
               </thead>
@@ -244,29 +277,20 @@ export default async function AdminExpensesPage({
                       }
                     >
                       <td className="px-4 py-3 border-b">
-                        {expense.id.slice(0, 6).toUpperCase()}
+                        <Link
+                          href={`/admin/expenses/${expense.id}`}
+                          className="font-medium text-blue-600 hover:underline"
+                        >
+                          {expense.uploaded_by_worker_name || "-"}
+                        </Link>
                       </td>
 
                       <td className="px-4 py-3 border-b">
-                        {expense.uploaded_by_worker_name ||
-                          expense.workers?.[0]?.name ||
-                          "-"}
-                      </td>
-
-                      <td className="px-4 py-3 border-b">
-                        {expense.projects?.[0]?.name || "-"}
+                        {expense.projects?.name || "-"}
                       </td>
 
                       <td className="px-4 py-3 border-b">
                         {expense.vendor_name || "-"}
-                      </td>
-
-                      <td className="px-4 py-3 border-b">
-                        {expense.invoice_date
-                          ? new Date(
-                              expense.invoice_date
-                            ).toLocaleDateString()
-                          : "-"}
                       </td>
 
                       <td className="px-4 py-3 border-b">
@@ -279,12 +303,7 @@ export default async function AdminExpensesPage({
                       </td>
 
                       <td className="px-4 py-3 border-b">
-                        {expense.ocr_status || "-"}
-                      </td>
-
-                      <td className="px-4 py-3 border-b">
-                        {expense.approval_status ||
-                          "pending"}
+                        {getStatusBadge(expense.approval_status)}
                       </td>
 
                       <td className="px-4 py-3 border-b">
@@ -295,13 +314,34 @@ export default async function AdminExpensesPage({
                           : "-"}
                       </td>
 
-                      <td className="px-4 py-3 border-b">
-                        <Link
-                          href={`/admin/expenses/${expense.id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          View
-                        </Link>
+                      <td className="w-24 px-4 py-3 border-b text-center">
+                        {expense.invoiceUrl ? (
+                          <Link
+                            href={expense.invoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            View
+                          </Link>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 border-b text-center">
+                        {expense.approval_status === "pending" ||
+                        !expense.approval_status ? (
+                          <ApprovalButtons id={expense.id} />
+                        ) : expense.approval_status === "approved" ? (
+                          <span className="text-green-600 font-medium">
+                            Approved
+                          </span>
+                        ) : (
+                          <span className="text-red-600 font-medium">
+                            Rejected
+                          </span>
+                        )}
                       </td>
                     </tr>
                   )
