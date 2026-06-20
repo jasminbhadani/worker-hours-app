@@ -24,7 +24,7 @@ export default function Home() {
     en: {
       title: "Work Hours Tracker",
       subtitle: "Enter your work hours below",
-      worker: "Worker Name",
+      worker: "Contractor Name",
       site: "Job Site",
       date: "Work Date",
       hours: "Hours Worked",
@@ -35,8 +35,8 @@ export default function Home() {
       submit: "Submit Hours",
       success: "Record submitted successfully.",
       validation: {
-        workerRequired: "Worker name is required.",
-        workerInvalid: "Please enter a valid worker name.",
+        workerRequired: "Contractor name is required.",
+        workerInvalid: "Please enter a valid contractor name.",
         siteRequired: "Job site is required.",
         dateRequired: "Work date is required.",
         futureDate: "Work date cannot be in the future.",
@@ -49,7 +49,7 @@ export default function Home() {
     es: {
       title: "Registro de Horas",
       subtitle: "Ingrese sus horas de trabajo",
-      worker: "Nombre del Trabajador",
+      worker: "Nombre del Contratista",
       site: "Lugar de Trabajo",
       date: "Fecha de Trabajo",
       hours: "Horas Trabajadas",
@@ -60,8 +60,8 @@ export default function Home() {
       submit: "Enviar Horas",
       success: "Horas enviadas correctamente.",
       validation: {
-        workerRequired: "El nombre del trabajador es obligatorio.",
-        workerInvalid: "Ingrese un nombre válido.",
+        workerRequired: "El nombre del Contratista es obligatorio.",
+        workerInvalid: "Ingrese un nombre de contratista válido.",
         siteRequired: "El lugar de trabajo es obligatorio.",
         dateRequired: "La fecha de trabajo es obligatoria.",
         futureDate: "La fecha de trabajo no puede ser futura.",
@@ -119,11 +119,17 @@ export default function Home() {
     const nameRegex = /^[A-Za-zÀ-ÿ\s'.-]+$/;
 
     if (!formData.workerId) {
-      newErrors.workerId = "Please select a worker.";
+      newErrors.workerId =
+        language === "en"
+          ? "Please select a contractor."
+          : "Seleccione un contratista.";
     }
 
     if (!formData.projectId) {
-      newErrors.projectId = "Please select a project.";
+      newErrors.projectId =
+        language === "en"
+          ? "Please select a project."
+          : "Seleccione un proyecto.";
     }
 
     if (!formData.workDate) {
@@ -233,7 +239,7 @@ return (
                   : "border-gray-300"
               }`}
             >
-              <option value="">Select Worker</option>
+              <option value="">Select Contractor</option>
 
               {workers.map((worker) => (
                 <option key={worker.id} value={worker.id}>

@@ -9,6 +9,9 @@ export default function EditWorkerButton({
 }) {
   const [open, setOpen] = useState(false);
 
+  const [contractorName, setContractorName] =
+    useState(worker.name || "");
+
   const [dayRate, setDayRate] = useState(
     worker.day_rate
   );
@@ -25,6 +28,11 @@ export default function EditWorkerButton({
     useState(false);
 
   async function handleSave() {
+    if (!contractorName.trim()) {
+      alert("Contractor name is required");
+      return;
+    }
+
     setLoading(true);
 
     const res = await fetch(
@@ -36,6 +44,7 @@ export default function EditWorkerButton({
             "application/json",
         },
         body: JSON.stringify({
+          name: contractorName.trim(),
           dayRate,
           nightRate,
           active,
@@ -49,7 +58,10 @@ export default function EditWorkerButton({
       window.location.reload();
     } else {
       const data = await res.json();
-      alert(data.error || "Update failed");
+
+      alert(
+        data.error || "Update failed"
+      );
     }
   }
 
@@ -66,15 +78,32 @@ export default function EditWorkerButton({
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl w-96">
             <h2 className="text-xl font-bold">
-            Edit Worker
+              Edit Contractor
             </h2>
 
             <p className="text-sm text-slate-500 mb-4">
-            Worker:{" "}
-            <span className="font-semibold text-slate-700">
+              Contractor:{" "}
+              <span className="font-semibold text-slate-700">
                 {worker.name}
-            </span>
+              </span>
             </p>
+
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">
+                Contractor Name
+              </label>
+
+              <input
+                type="text"
+                value={contractorName}
+                onChange={(e) =>
+                  setContractorName(
+                    e.target.value
+                  )
+                }
+                className="border w-full p-2 rounded"
+              />
+            </div>
 
             <div className="mb-4">
               <label className="block mb-1 font-medium">

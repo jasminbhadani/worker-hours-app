@@ -21,7 +21,7 @@ export default function AdminLayout({
             href="/admin/workers"
             className="text-blue-600 font-medium hover:underline"
           >
-            Workers
+            Contractors
           </Link>
 
           <Link

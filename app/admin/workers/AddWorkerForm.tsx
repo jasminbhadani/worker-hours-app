@@ -43,12 +43,12 @@ export default function AddWorkerForm() {
       className="bg-white rounded-xl shadow p-4 mb-6"
     >
       <h2 className="text-lg font-semibold mb-4">
-        Add New Worker
+        Add New Contractor
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <input
-          placeholder="Worker Name"
+          placeholder="Contractor Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="border rounded p-2"
@@ -78,7 +78,7 @@ export default function AddWorkerForm() {
           disabled={loading}
           className="bg-blue-600 text-white rounded p-2 hover:bg-blue-700"
         >
-          {loading ? "Adding..." : "Add Worker"}
+          {loading ? "Adding..." : "Add Contractor"}
         </button>
       </div>
     </form>

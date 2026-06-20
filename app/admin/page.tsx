@@ -229,7 +229,7 @@ export default async function AdminPage({
           </h1>
 
           <p className="text-slate-500">
-            View and manage worker submissions
+            View and manage Contractor submissions
           </p>
         </div>
       </div>
@@ -267,7 +267,7 @@ export default async function AdminPage({
 
         <div className="rounded-xl bg-purple-600 p-5 text-white shadow">
           <p className="text-sm opacity-80">
-            Active Workers
+            Active Contractors
           </p>
           <h2 className="text-3xl font-bold">
             {activeWorkerCount || 0}
@@ -292,15 +292,15 @@ export default async function AdminPage({
           <div className="flex items-start justify-between">
             <div>
               <p className="opacity-80">
-                Workers
-              </p>
+                Contractors
+              </p>  
 
               <h2 className="mt-2 text-3xl font-bold">
                 View
               </h2>
 
               <p className="mt-3 text-sm opacity-80">
-                Manage workers
+                Manage contractors
               </p>
             </div>
 
@@ -368,7 +368,7 @@ export default async function AdminPage({
               htmlFor="worker-filter"
               className="text-sm font-medium text-slate-700"
             >
-              Worker
+              Contractor
             </label>
 
             <select
@@ -378,7 +378,7 @@ export default async function AdminPage({
               className="w-64 rounded border p-2"
             >
               <option value="">
-                All workers
+                All contractors
               </option>
 
               {((workers || []) as WorkerOption[]).map(
@@ -489,7 +489,7 @@ export default async function AdminPage({
             <thead>
               <tr className="bg-slate-100 text-slate-700">
                 <th className="border-b border-r px-4 py-3 text-left font-semibold">
-                  Worker
+                  Contractor
                 </th>
 
                 <th className="border-b border-r px-4 py-3 text-left font-semibold">

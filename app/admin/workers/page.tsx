@@ -23,11 +23,11 @@ export default async function WorkersPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-800">
-          Worker Management
+          Contractor Management
         </h1>
 
         <p className="text-slate-500">
-          Add and manage workers and pay rates
+          Add and manage contractors and pay rates
         </p>
       </div>
 
@@ -35,7 +35,7 @@ export default async function WorkersPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-blue-600 text-white rounded-xl p-5 shadow">
           <p className="text-sm opacity-80">
-            Total Workers
+            Total Contractors
           </p>
 
           <h2 className="text-3xl font-bold">
@@ -45,7 +45,7 @@ export default async function WorkersPage() {
 
         <div className="bg-green-600 text-white rounded-xl p-5 shadow">
           <p className="text-sm opacity-80">
-            Active Workers
+            Active Contractors
           </p>
 
           <h2 className="text-3xl font-bold">
@@ -55,7 +55,7 @@ export default async function WorkersPage() {
 
         <div className="bg-red-600 text-white rounded-xl p-5 shadow">
           <p className="text-sm opacity-80">
-            Inactive Workers
+            Inactive Contractors
           </p>
 
           <h2 className="text-3xl font-bold">
@@ -73,7 +73,7 @@ export default async function WorkersPage() {
           <thead>
             <tr className="bg-slate-100 text-slate-700">
               <th className="px-4 py-3 border-b border-r text-left font-semibold">
-                Worker
+                Contractors
               </th>
 
               <th className="px-4 py-3 border-b border-r text-left font-semibold">
@@ -140,7 +140,7 @@ export default async function WorkersPage() {
 
         {workers?.length === 0 && (
           <div className="p-8 text-center text-slate-500">
-            No workers found.
+            No Contractorss found.
           </div>
         )}
       </div>
